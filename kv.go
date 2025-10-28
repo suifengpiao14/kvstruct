@@ -301,6 +301,17 @@ func (kvs *KVS) FillterByPrefix(prefix string) (newKVs KVS) {
 	return newKVs
 }
 
+func (kvs *KVS) Fillter(fn func(kv KV) bool) (newKVs KVS) {
+	newKVs = KVS{}
+	for _, kv := range *kvs {
+		if fn(kv) {
+			newKVs = append(newKVs, kv)
+		}
+	}
+	*kvs = newKVs
+	return newKVs
+}
+
 func (kvs KVS) Walk(fn func(kvIn KV) (kvOut KV, err error)) error {
 	for i := range kvs {
 		kv, err := fn(kvs[i])
