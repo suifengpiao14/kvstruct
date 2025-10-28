@@ -2,6 +2,7 @@ package kvstruct
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,15 @@ type KV struct {
 	Type  KVType `json:"type"`
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+func (kv *KV) ReplaceKey(keyPairs ...KeyPair) (err error) {
+	newKey, err := KeyPairs(keyPairs).ReplaceKey(kv.Key)
+	if err != nil {
+		return err
+	}
+	kv.Key = newKey
+	return nil
 }
 
 type KVS []KV
@@ -212,7 +222,7 @@ func (kvs *KVS) AddReplace(replacekvs ...KV) {
 	}
 }
 
-//Pop 弹出key对应的元素
+// Pop 弹出key对应的元素
 func (kvs *KVS) Pop(key string) (targetKv *KV, ok bool) {
 	var index int
 	for i, kv := range *kvs {
@@ -232,7 +242,7 @@ func (kvs *KVS) Pop(key string) (targetKv *KV, ok bool) {
 	return targetKv, ok
 }
 
-//AppendRow 在二维数组内增加行,prefix 会自动补齐后缀.
+// AppendRow 在二维数组内增加行,prefix 会自动补齐后缀.
 func (kvs *KVS) AppendRows(rows KVS, prefix string) {
 	prefix = fmt.Sprintf("%s.", strings.TrimRight(prefix, ".")) // 确保以.结尾
 	existsKvs := kvs.FillterByPrefix(prefix)
@@ -289,6 +299,69 @@ func (kvs *KVS) FillterByPrefix(prefix string) (newKVs KVS) {
 		}
 	}
 	return newKVs
+}
+
+func (kvs KVS) Walk(fn func(kvIn KV) (kvOut KV, err error)) error {
+	for i := range kvs {
+		kv, err := fn(kvs[i])
+		if err != nil {
+			return err
+		}
+		kvs[i] = kv
+	}
+	return nil
+}
+
+// ReplaceKey 替换key值(支持正则表达式)，但不改变value值,可用于转换数据格式，比如新旧接口返回字段不一致，可以将旧接口数据转换为新接口数据格式
+type KeyPair struct {
+	OldKeyRegexp string
+	NewKeyRegexp string
+	regexp       *regexp.Regexp
+}
+
+func (kp *KeyPair) compile() (err error) {
+	kp.regexp, err = regexp.Compile(kp.OldKeyRegexp)
+	return err
+}
+
+func (kp *KeyPair) ReplaceKey(oldKey string) (newStr string, matched bool, err error) {
+	if kp.regexp == nil {
+		err = kp.compile()
+		if err != nil {
+			return oldKey, false, err
+		}
+	}
+	if kp.regexp.MatchString(oldKey) {
+		newStr = kp.regexp.ReplaceAllString(oldKey, kp.NewKeyRegexp)
+		return newStr, true, nil
+	}
+	return oldKey, false, nil
+}
+
+type KeyPairs []KeyPair
+
+func (kps KeyPairs) ReplaceKey(oldKey string) (newStr string, err error) {
+	for i := range kps {
+		newStr, matched, err := kps[i].ReplaceKey(oldKey)
+		if err != nil {
+			return "", err
+		}
+		if matched {
+			return newStr, nil
+		}
+	}
+	return oldKey, nil
+}
+
+func (kvs KVS) ReplaceKey(keyPairs ...KeyPair) (err error) {
+	kvs.Walk(func(kv KV) (KV, error) {
+		err = kv.ReplaceKey(keyPairs...)
+		if err != nil {
+			return kv, err
+		}
+		return kv, nil
+	})
+	return nil
 }
 
 const (
