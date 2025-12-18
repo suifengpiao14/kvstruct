@@ -1,6 +1,7 @@
 package kvstruct
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -28,6 +29,19 @@ type KV struct {
 	Value string `json:"value"`
 }
 
+func toJsonString(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err.Error()
+	}
+	s := string(b)
+	return s
+}
+
+func (kv KV) String() string {
+	return toJsonString(kv)
+}
+
 func (kv *KV) ReplaceKey(keyPairs ...KeyPair) (err error) {
 	newKey, err := KeyPairs(keyPairs).ReplaceKey(kv.Key)
 	if err != nil {
@@ -38,6 +52,10 @@ func (kv *KV) ReplaceKey(keyPairs ...KeyPair) (err error) {
 }
 
 type KVS []KV
+
+func (kvs KVS) String() string {
+	return toJsonString(kvs)
+}
 
 func (kvs KVS) Json(WithType bool) (jsonStr string, err error) {
 	for _, kv := range kvs {
