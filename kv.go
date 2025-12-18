@@ -30,6 +30,9 @@ type KV struct {
 }
 
 func toJsonString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err.Error()
